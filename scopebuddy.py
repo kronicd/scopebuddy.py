@@ -110,7 +110,7 @@ for domain in domains:
     if data != False:
         for ip in data:
             try:
-                print(f'{ip},{domain},{getRDNS(ip)},{getASN(ip)},"{getIPHoster(ip)}","{getIPOwner(ip)}",{getBGPCIDR(ip)},{getWhoisCIDR(ip)}')
+                print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}"')
             except:
                 sys.stderr.write(f'Error:{ip} failed for some reason')
 
