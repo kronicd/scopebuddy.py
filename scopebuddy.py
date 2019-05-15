@@ -8,6 +8,7 @@ import warnings
 import shodan
 import sys
 import json
+import os
 
 warnings.filterwarnings("ignore")
 
@@ -19,7 +20,7 @@ parser.add_argument(
 parser.add_argument("-s",
                     "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
 parser.add_argument("-c",
-                    "--config", default="config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
+                    "--config", default=f"{os.path.dirname(sys.argv[0])}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
 args = parser.parse_args()
 shodan_enable = args.shodan
 
