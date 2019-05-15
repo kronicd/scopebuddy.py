@@ -5,11 +5,43 @@ from ipwhois import IPWhois
 import ipaddress
 from pprint import pprint
 import warnings
+import shodan
 import sys
+import json
 
 warnings.filterwarnings("ignore")
 
 cache = {}
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "dnslist", help="A text file containing a list of domain names")
+parser.add_argument("-s",
+                    "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
+parser.add_argument("-c",
+                    "--config", default="config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
+args = parser.parse_args()
+shodan_enable = args.shodan
+
+if shodan_enable:
+    try:
+        with open(args.config, "r") as f:
+            config = json.load(f)
+            SHODAN_APIKEY = config["shodan"]
+            shodan_enable = True
+        api = shodan.Shodan(SHODAN_APIKEY)
+    except FileNotFoundError as e:
+        print(f"Config file doesn't exist. A sample file is included in the repository for this project. {e}")
+        shodan_enable = False
+        sys.exit(1)
+    except KeyError:
+        print(f"malformed config file - missing shodan api key")
+        shodan_enable = False
+        sys.exit(1)
+    except Exception as e:
+        print(f"Um this is well fucked eh: {e}")
+        shodan_enable = False
+        sys.exit(1)
 
 def searchCache(ip):
     result = False
@@ -94,15 +126,25 @@ def getASN(ip):
     results = searchIP(ip)
     return results["asn"]
 
-    
+def shodan_search(ip):
+    try:
+        host = api.host(ip)
+    except shodan.APIError:
+        return None
+    return host
 
-parser = argparse.ArgumentParser()
-parser.add_argument("dnslist", help="A text file containing a list of domain names")
-args = parser.parse_args()
+def getShodanInfo(host):
+    return host['ip_str']
 
+def getShodanPorts(host):
+    ports = (f'{item["port"]}({item["_shodan"]["module"]})' for item in host["data"])
+    return ",".join(ports)
+        
 domains = [line.rstrip('\n') for line in open(args.dnslist)]
-
-print(f'IP,DNS,RDNS,ASN,IP Hoster,IP Owner,BGP CIDR,Whois CIDR')
+if shodan_enable:
+    print(f'IP,DNS,RDNS,ASN,IP Hoster,IP Owner,BGP CIDR,Whois CIDR,Shodan Ports')
+else:
+    print(f'IP,DNS,RDNS,ASN,IP Hoster,IP Owner,BGP CIDR,Whois CIDR')
 
 for domain in domains:
     time.sleep(0.01)
@@ -110,7 +152,11 @@ for domain in domains:
     if data != False:
         for ip in data:
             try:
-                print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}"')
+                if shodan_enable:
+                    host = shodan_search(ip)
+                    print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}", "{getShodanPorts(host)}"')
+                else:
+                    print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}"')
             except:
                 sys.stderr.write(f'Error:{ip} failed for some reason')
 
