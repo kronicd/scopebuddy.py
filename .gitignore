@@ -1,3 +1,5 @@
 */*.json
 */*.DS_Store
+*/*.csv
+*/*.txt
 test.txt

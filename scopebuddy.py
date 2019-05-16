@@ -155,7 +155,7 @@ for domain in domains:
             try:
                 if shodan_enable:
                     host = shodan_search(ip)
-                    print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}", "{getShodanPorts(host)}"')
+                    print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}","{getShodanPorts(host)}"')
                 else:
                     print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}"')
             except:
