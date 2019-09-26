@@ -13,6 +13,7 @@ import os
 warnings.filterwarnings("ignore")
 
 cache = {}
+shodanCache = {}
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -128,18 +129,20 @@ def getASN(ip):
     return results["asn"]
 
 def shodan_search(ip):
-    try:
-        host = api.host(ip)
-    except shodan.APIError:
-        return None
-    return host
-
-def getShodanInfo(host):
-    return host['ip_str']
+    if ip in shodanCache.keys():
+        return shodanCache[ip]
+    else:
+        try:
+            host = api.host(ip)
+            shodanCache[ip] = host
+        except shodan.APIError:
+            return None
+        return host
 
 def getShodanPorts(host):
     ports = (f'{item["port"]}({item["_shodan"]["module"]})' for item in host["data"])
     return ",".join(ports)
+
         
 domains = [line.rstrip('\n') for line in open(args.dnslist)]
 if shodan_enable:
@@ -160,5 +163,6 @@ for domain in domains:
                     print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}"')
             except:
                 sys.stderr.write(f'Error:{ip} failed for some reason')
+                pass
 
 
