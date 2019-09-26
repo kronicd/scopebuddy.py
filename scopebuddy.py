@@ -60,12 +60,15 @@ def searchIP(ip):
     # first we will need to search cache
     result = searchCache(ip)
     if (result == False):
-        obj = IPWhois(ip)
-        result = obj.lookup_rdap(depth=1)
-        if result["asn_cidr"] != "NA":
-            cache[result["asn_cidr"]] = result
-        else:  
-            cache[result["network"]["cidr"]] = result
+        try:
+            obj = IPWhois(ip)
+            result = obj.lookup_rdap(depth=1)
+            if result["asn_cidr"] != "NA":
+                cache[result["asn_cidr"]] = result
+            else:  
+                cache[result["network"]["cidr"]] = result
+        except:
+            return "Failed"
 
     return result
 
@@ -109,24 +112,39 @@ def getCNAME(d):
         return False
 
 def getIPOwner(ip):
-    results = searchIP(ip)
-    return results["network"]["name"]
+    try:
+        results = searchIP(ip)
+        return results["network"]["name"]
+    except:
+        return "No Data/Failed"
 
 def getIPHoster(ip):
-    results = searchIP(ip)
-    return results["asn_description"]
+    try:
+        results = searchIP(ip)
+        return results["asn_description"]
+    except:
+        return "No Data/Failed"
 
 def getWhoisCIDR(ip):
-    results = searchIP(ip)
-    return results["asn_cidr"]
+    try:
+        results = searchIP(ip)
+        return results["asn_cidr"]
+    except:
+        return "No Data/Failed"
 
 def getBGPCIDR(ip):
-    results = searchIP(ip)
-    return results["network"]["cidr"]
+    try:
+        results = searchIP(ip)
+        return results["network"]["cidr"]
+    except:
+        return "No Data/Failed"
 
 def getASN(ip):
-    results = searchIP(ip)
-    return results["asn"]
+    try:
+        results = searchIP(ip)
+        return results["asn"]
+    except:
+        return "No Data/Failed"
 
 def shodan_search(ip):
     if ip in shodanCache.keys():
@@ -140,8 +158,11 @@ def shodan_search(ip):
         return host
 
 def getShodanPorts(host):
-    ports = (f'{item["port"]}({item["_shodan"]["module"]})' for item in host["data"])
-    return ",".join(ports)
+    try:
+        ports = (f'{item["port"]}({item["_shodan"]["module"]})' for item in host["data"])
+        return ",".join(ports)
+    except: 
+        return "No Data/Failed"
 
         
 domains = [line.rstrip('\n') for line in open(args.dnslist)]
@@ -155,14 +176,14 @@ for domain in domains:
     data = getIP(domain)
     if data != False:
         for ip in data:
-            try:
+            #try:
                 if shodan_enable:
                     host = shodan_search(ip)
                     print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}","{getShodanPorts(host)}"')
                 else:
                     print(f'"{ip}","{domain}","{getRDNS(ip)}","{getASN(ip)}","{getIPHoster(ip)}","{getIPOwner(ip)}","{getBGPCIDR(ip)}","{getWhoisCIDR(ip)}"')
-            except:
-                sys.stderr.write(f'Error:{ip} failed for some reason')
-                pass
+            #except:
+            #    sys.stderr.write(f'Error:{ip} failed for some reason')
+            #    pass
 
 
