@@ -18,4 +18,4 @@ scopebuddy.py was written to quickly allow penetration testers to identify the o
 *`-d` can be used to specify an arbitrary output delimiter*
 
 ## License Amendment
-The software is distributed under GPL-2.0 with the amendment that SS23 is not permitted to use it.
+The software is distributed under GPL-2.0 with the amendment that ss23 is not permitted to use it.
