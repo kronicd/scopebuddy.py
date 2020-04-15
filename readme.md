@@ -6,11 +6,14 @@ The ownership information is gathered from BGP and whois data.
 ## Intended use case
 scopebuddy.py was written to quickly allow penetration testers to identify the ownership of a list of hosts to identify targets that are in/out of scope.
 
+## Prep
+
+* `pip install -r requirements.txt`
+* `mv config.json.sample config.json`
+* Edit config.json to add your Shodan API details
+
 ## Usage
-Install the required deps and then:
-
 `python3 scopebuddy.py hosts.txt [-c config.json] [-d ,] > somefile`
-
 *`-d` can be used to specify an arbitrary output delimiter*
 
 ## License Amendment
