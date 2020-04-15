@@ -21,7 +21,7 @@ parser.add_argument(
 parser.add_argument("-s",
                     "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
 parser.add_argument("-c",
-                    "--config", default=f"{os.path.dirname(sys.argv[0])}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
+                    "--config", default=f"{os.path.dirname(os.path.realpath(__file__))}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
 parser.add_argument("-d",
                     "--delim", default="\t", help="Output delimiter (default is tab)")
 args = parser.parse_args()
