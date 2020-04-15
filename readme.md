@@ -14,6 +14,7 @@ scopebuddy.py was written to quickly allow penetration testers to identify the o
 
 ## Usage
 `python3 scopebuddy.py hosts.txt [-c config.json] [-d ,] > somefile`
+
 *`-d` can be used to specify an arbitrary output delimiter*
 
 ## License Amendment
