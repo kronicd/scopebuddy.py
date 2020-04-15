@@ -9,7 +9,9 @@ scopebuddy.py was written to quickly allow penetration testers to identify the o
 ## Usage
 Install the required deps and then:
 
-```python3 scopebuddy.py hosts.txt > output.csv```
+`python3 scopebuddy.py hosts.txt [-c config.json] [-d ,] > somefile`
+
+*`-d` can be used to specify an arbitrary output delimiter*
 
 ## License Amendment
 The software is distributed under GPL-2.0 with the amendment that SS23 is not permitted to use it.
