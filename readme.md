@@ -13,9 +13,7 @@ scopebuddy.py was written to quickly allow penetration testers to identify the o
 * Edit config.json to add your Shodan API details
 
 ## Usage
-`python3 scopebuddy.py hosts.txt [-c config.json] [-d ,] > somefile`
-
-*`-d` can be used to specify an arbitrary output delimiter*
+`python3 scopebuddy.py hosts.txt [-c config.json] -o somefile`
 
 ## License Amendment
 The software is distributed under GPL-2.0 with the amendment that ss23 is not permitted to use it.

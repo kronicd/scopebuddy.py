@@ -9,6 +9,7 @@ import shodan
 import sys
 import json
 import os
+import csv
 
 warnings.filterwarnings("ignore")
 
@@ -22,11 +23,12 @@ parser.add_argument("-s",
                     "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
 parser.add_argument("-c",
                     "--config", default=f"{os.path.dirname(os.path.realpath(__file__))}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
-parser.add_argument("-d",
-                    "--delim", default="\t", help="Output delimiter (default is tab)")
+parser.add_argument("-o", 
+                    "--output", default="-", help="Output file")
 args = parser.parse_args()
 shodan_enable = args.shodan
 delim = args.delim
+output = args.output
 
 if shodan_enable:
     try:
@@ -168,26 +170,29 @@ def getShodanPorts(host):
     except: 
         return "No Data/Failed"
 
-        
 domains = [line.rstrip('\n') for line in open(args.dnslist)]
-if shodan_enable:
-    print(f'IP{delim}DNS{delim}RDNS{delim}ASN{delim}IP Hoster{delim}IP Owner{delim}BGP CIDR{delim}Whois CIDR{delim}Shodan Ports')
-else:
-    print(f'IP{delim}DNS{delim}RDNS{delim}ASN{delim}IP Hoster{delim}IP Owner{delim}BGP CIDR{delim}Whois CIDR')
 
-for domain in domains:
-    time.sleep(0.01)
-    data = getIP(domain)
-    if data != False:
-        for ip in data:
-            #try:
-                if shodan_enable:
-                    host = shodan_search(ip)
-                    print(f'"{ip}"{delim}"{domain}"{delim}"{getRDNS(ip)}"{delim}"{getASN(ip)}"{delim}"{getIPHoster(ip)}"{delim}"{getIPOwner(ip)}"{delim}"{getBGPCIDR(ip)}"{delim}"{getWhoisCIDR(ip)}"{delim}"{getShodanPorts(host)}"')
-                else:
-                    print(f'"{ip}"{delim}"{domain}"{delim}"{getRDNS(ip)}"{delim}"{getASN(ip)}"{delim}"{getIPHoster(ip)}"{delim}"{getIPOwner(ip)}"{delim}"{getBGPCIDR(ip)}"{delim}"{getWhoisCIDR(ip)}"')
-            #except:
-            #    sys.stderr.write(f'Error:{ip} failed for some reason')
-            #    pass
+with open(output, "w", newline="") as f:
+    writer = csv.writer(f)
+
+    if shodan_enable:
+        writer.writerow(["IP", "DNS", "RDNS", "ASN", "IP Hoster", "IP Owner", "BGP CIDR", "Whois CIDR", "Shodan Ports"])
+    else:
+        writer.writerow(["IP", "DNS", "RDNS", "ASN", "IP Hoster", "IP Owner", "BGP CIDR", "Whois CIDR"])
+
+    for domain in domains:
+        time.sleep(0.01)
+        data = getIP(domain)
+        if data != False:
+            for ip in data:
+                #try:
+                    if shodan_enable:
+                        host = shodan_search(ip)
+                        writer.writerow([ip, domain, getRDNS(ip), getASN(ip), getIPHoster(ip), getIPOwner(ip), getBGPCIDR(ip), getWhoisCIDR(ip), getShodanPorts(host)])
+                    else:
+                        writer.writerow([ip, domain, getRDNS(ip), getASN(ip), getIPHoster(ip), getIPOwner(ip), getBGPCIDR(ip), getWhoisCIDR(ip)])
+                #except:
+                #    sys.stderr.write(f'Error:{ip} failed for some reason')
+                #    pass
 
 
