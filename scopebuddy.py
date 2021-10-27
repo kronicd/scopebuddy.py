@@ -27,7 +27,6 @@ parser.add_argument("-o",
                     "--output", default="-", help="Output file")
 args = parser.parse_args()
 shodan_enable = args.shodan
-delim = args.delim
 output = args.output
 
 if shodan_enable:
