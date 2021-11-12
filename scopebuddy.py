@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import argparse
 import time
 import socket
@@ -48,6 +49,15 @@ if shodan_enable:
         print(f"Um this is well fucked eh: {e}")
         shodan_enable = False
         sys.exit(1)
+
+@contextmanager
+def open_or_stdout(filename):
+    if filename != '-':
+        with open(filename, 'w') as f:
+            yield f
+    else:
+        yield sys.stdout
+
 
 def searchCache(ip):
     result = False
@@ -171,7 +181,7 @@ def getShodanPorts(host):
 
 domains = [line.rstrip('\n') for line in open(args.dnslist)]
 
-with open(output, "w", newline="") as f:
+with open_or_stdout(output) as f:
     writer = csv.writer(f)
 
     if shodan_enable:
