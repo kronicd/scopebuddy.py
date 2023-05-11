@@ -99,12 +99,12 @@ def getIP(d):
         data = socket.gethostbyname_ex(d)
         ipx = data[2]
         if verbose:
-            print(f'[*] Domain {d}, IP: {ipx}')
+            print(f'[+] Domain {d}, IP: {ipx}')
         return ipx
     except Exception:
         # fail gracefully!
         if verbose:
-            print(f'[*] Could not resolve domain {d}')
+            print(f'[-] Could not resolve domain {d}')
         return False
 #
 def getRDNS(ip):
@@ -115,12 +115,12 @@ def getRDNS(ip):
         data = socket.gethostbyaddr(ip)
         host = data[0]
         if verbose:
-            print(f'[*] IP: {ip}, RDNS {host}, ')
+            print(f'[+] IP: {ip}, RDNS {host}, ')
         return host
     except Exception:
         # fail gracefully
         if verbose:
-            print(f'[*] No RNDS found for {ip}')
+            print(f'[-] No RNDS found for {ip}')
         return "None"
 #
 def getCNAME(d):
@@ -132,12 +132,12 @@ def getCNAME(d):
         data = socket.gethostbyname_ex(d)
         alias = repr(data[1])
         if verbose:
-            print(f'[*] Domain: {d}, CNAME {alias}, ')
+            print(f'[+] Domain: {d}, CNAME {alias}, ')
         return alias
     except Exception:
         # fail gracefully
         if verbose:
-            print(f'[*] No CNAME found for {d}')
+            print(f'[-] No CNAME found for {d}')
         return False
 
 def getIPOwner(ip):
