@@ -205,9 +205,10 @@ with open_or_stdout(output) as f:
         writer.writerow(["IP", "DNS", "RDNS", "ASN", "IP Hoster", "IP Owner", "BGP CIDR", "Whois CIDR"])
 
     for domain in domains:
-        time.sleep(0.2)
+        time.sleep(0.02)
         data = getIP(domain)
         if data != False:
+            time.sleep(2)
             for ip in data:
                 #try:
                     if shodan_enable:
