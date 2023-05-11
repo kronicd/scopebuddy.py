@@ -115,7 +115,7 @@ def getRDNS(ip):
         data = socket.gethostbyaddr(ip)
         host = data[0]
         if verbose:
-            print(f'[+] IP: {ip}, RDNS {host}, ')
+            print(f'[+] IP: {ip}, RDNS {host}')
         return host
     except Exception:
         # fail gracefully
