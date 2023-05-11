@@ -208,8 +208,8 @@ with open_or_stdout(output) as f:
         time.sleep(0.02)
         data = getIP(domain)
         if data != False:
-            time.sleep(2)
             for ip in data:
+                time.sleep(2)
                 #try:
                     if shodan_enable:
                         host = shodan_search(ip)
