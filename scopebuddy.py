@@ -132,7 +132,7 @@ def getCNAME(d):
         data = socket.gethostbyname_ex(d)
         alias = repr(data[1])
         if verbose:
-            print(f'[+] Domain: {d}, CNAME {alias}, ')
+            print(f'[+] Domain: {d}, CNAME {alias}')
         return alias
     except Exception:
         # fail gracefully
