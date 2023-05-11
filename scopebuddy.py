@@ -210,14 +210,14 @@ with open_or_stdout(output) as f:
         if data != False:
             for ip in data:
                 time.sleep(2)
-                #try:
+                try:
                     if shodan_enable:
                         host = shodan_search(ip)
                         writer.writerow([ip, domain, getRDNS(ip), getASN(ip), getIPHoster(ip), getIPOwner(ip), getBGPCIDR(ip), getWhoisCIDR(ip), getShodanPorts(host)])
                     else:
                         writer.writerow([ip, domain, getRDNS(ip), getASN(ip), getIPHoster(ip), getIPOwner(ip), getBGPCIDR(ip), getWhoisCIDR(ip)])
-                #except:
-                #    sys.stderr.write(f'Error:{ip} failed for some reason')
-                #    pass
+                except:
+                    sys.stderr.write(f'Error:{ip} failed for some reason')
+                    pass
 
 
