@@ -25,9 +25,12 @@ parser.add_argument("-s",
 parser.add_argument("-c",
                     "--config", default=f"{os.path.dirname(os.path.realpath(__file__))}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
 parser.add_argument("-o", 
-                    "--output", default="-", help="Output file")
+                    "--output",  default="-", help="Output file")
+parser.add_argument("-v", 
+                    "--verbose", default=False, action="store_true", help="Verbose output")
 args = parser.parse_args()
 shodan_enable = args.shodan
+verbose = args.verbose
 output = args.output
 
 if shodan_enable:
@@ -95,9 +98,13 @@ def getIP(d):
     try:
         data = socket.gethostbyname_ex(d)
         ipx = data[2]
+        if verbose:
+            print(f'[*] Domain {d}, IP: {ipx}')
         return ipx
     except Exception:
         # fail gracefully!
+        if verbose:
+            print(f'[*] Could not resolve domain {d}')
         return False
 #
 def getRDNS(ip):
@@ -107,9 +114,13 @@ def getRDNS(ip):
     try:
         data = socket.gethostbyaddr(ip)
         host = data[0]
+        if verbose:
+            print(f'[*] IP: {ip}, RDNS {host}, ')
         return host
     except Exception:
         # fail gracefully
+        if verbose:
+            print(f'[*] No RNDS found for {ip}')
         return "None"
 #
 def getCNAME(d):
@@ -120,9 +131,13 @@ def getCNAME(d):
     try:
         data = socket.gethostbyname_ex(d)
         alias = repr(data[1])
+        if verbose:
+            print(f'[*] Domain: {d}, CNAME {alias}, ')
         return alias
     except Exception:
         # fail gracefully
+        if verbose:
+            print(f'[*] No CNAME found for {d}')
         return False
 
 def getIPOwner(ip):
@@ -190,7 +205,7 @@ with open_or_stdout(output) as f:
         writer.writerow(["IP", "DNS", "RDNS", "ASN", "IP Hoster", "IP Owner", "BGP CIDR", "Whois CIDR"])
 
     for domain in domains:
-        time.sleep(0.01)
+        time.sleep(0.2)
         data = getIP(domain)
         if data != False:
             for ip in data:
