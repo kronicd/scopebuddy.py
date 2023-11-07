@@ -208,6 +208,7 @@ def main():
         
         with ThreadPoolExecutor(max_workers=10) as executor:
             for domain in domains:
+                domain = domain.strip()
                 results = executor.submit(process_domain, domain)
                 for result in results.result():
                     row = [result["IP"], result["DNS"], result["RDNS"], result["ASN"], result["IP Hoster"], result["IP Owner"], result["BGP CIDR"], result["Whois CIDR"]]
