@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import argparse
 import time
@@ -15,19 +16,15 @@ import csv
 warnings.filterwarnings("ignore")
 
 cache = {}
-shodanCache = {}
+shodan_cache = {}
+last_ipwhois_timestamp = 0  # Initialize the timestamp
 
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    "dnslist", help="A text file containing a list of domain names")
-parser.add_argument("-s",
-                    "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
-parser.add_argument("-c",
-                    "--config", default=f"{os.path.dirname(os.path.realpath(__file__))}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
-parser.add_argument("-o", 
-                    "--output",  default="-", help="Output file")
-parser.add_argument("-v", 
-                    "--verbose", default=False, action="store_true", help="Verbose output")
+parser.add_argument("dnslist", help="A text file containing a list of domain names")
+parser.add_argument("-s", "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
+parser.add_argument("-c", "--config", default="config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
+parser.add_argument("-o", "--output", default="-", help="Output file")
+parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Verbose output")
 args = parser.parse_args()
 shodan_enable = args.shodan
 verbose = args.verbose
@@ -37,19 +34,18 @@ if shodan_enable:
     try:
         with open(args.config, "r") as f:
             config = json.load(f)
-            SHODAN_APIKEY = config["shodan"]
-            shodan_enable = True
+            SHODAN_APIKEY = config.get("shodan")
         api = shodan.Shodan(SHODAN_APIKEY)
     except FileNotFoundError as e:
         print(f"Config file doesn't exist. A sample file is included in the repository for this project. {e}")
         shodan_enable = False
         sys.exit(1)
     except KeyError:
-        print(f"malformed config file - missing shodan api key")
+        print("Malformed config file - missing Shodan API key")
         shodan_enable = False
         sys.exit(1)
     except Exception as e:
-        print(f"Um this is well fucked eh: {e}")
+        print(f"An error occurred: {e}")
         shodan_enable = False
         sys.exit(1)
 
@@ -61,40 +57,32 @@ def open_or_stdout(filename):
     else:
         yield sys.stdout
 
-
-def searchCache(ip):
-    result = False
-
+def search_cache(ip):
     for item in cache.keys():
         needle = ipaddress.ip_network(f'{ip}/32')
         haystack = ipaddress.ip_network(item)
-        if (needle.subnet_of(haystack)):
-            result = cache[item]
+        if needle.subnet_of(haystack):
+            return cache[item]
+    return False
 
-    return result
-
-def searchIP(ip):
-    # first we will need to search cache
-    result = searchCache(ip)
-    if (result == False):
+def search_ip(ip):
+    global last_ipwhois_timestamp  # Use the global timestamp variable
+    result = search_cache(ip)
+    current_timestamp = time.time()
+    
+    if result == False:
         try:
+            if current_timestamp - last_ipwhois_timestamp < 2:
+                time.sleep(2 - (current_timestamp - last_ipwhois_timestamp))
             obj = IPWhois(ip)
             result = obj.lookup_rdap(depth=1)
-            if result["asn_cidr"] != "NA":
-                cache[result["asn_cidr"]] = result
-            else:  
-                cache[result["network"]["cidr"]] = result
+            cache[result.get("asn_cidr", result["network"]["cidr"])] = result
+            last_ipwhois_timestamp = time.time()  # Update the timestamp
         except:
             return "Failed"
-
     return result
 
-def getIP(d):
-    """
-    returns thinger of
-    one or more IP address strings that respond
-    as the given domain name
-    """
+def get_ip(d):
     try:
         data = socket.gethostbyname_ex(d)
         ipx = data[2]
@@ -102,15 +90,11 @@ def getIP(d):
             print(f'[+] Domain {d}, IP: {ipx}')
         return ipx
     except Exception:
-        # fail gracefully!
         if verbose:
             print(f'[-] Could not resolve domain {d}')
         return False
-#
-def getRDNS(ip):
-    """
-        gets rdns, idk what you expect
-    """
+
+def get_rdns(ip):
     try:
         data = socket.gethostbyaddr(ip)
         host = data[0]
@@ -118,16 +102,11 @@ def getRDNS(ip):
             print(f'[+] IP: {ip}, RDNS {host}')
         return host
     except Exception:
-        # fail gracefully
         if verbose:
-            print(f'[-] No RNDS found for {ip}')
+            print(f'[-] No RDNS found for {ip}')
         return "None"
-#
-def getCNAME(d):
-    """
-    This method returns an array containing
-    a list of cnames for the domain
-    """
+
+def get_cname(d):
     try:
         data = socket.gethostbyname_ex(d)
         alias = repr(data[1])
@@ -135,89 +114,106 @@ def getCNAME(d):
             print(f'[+] Domain: {d}, CNAME {alias}')
         return alias
     except Exception:
-        # fail gracefully
         if verbose:
             print(f'[-] No CNAME found for {d}')
         return False
 
-def getIPOwner(ip):
+def get_ip_owner(ip):
     try:
-        results = searchIP(ip)
-        return results["network"]["name"]
+        results = search_ip(ip)
+        return results.get("network", {}).get("name", "No Data/Failed")
     except:
         return "No Data/Failed"
 
-def getIPHoster(ip):
+def get_ip_hoster(ip):
     try:
-        results = searchIP(ip)
-        return results["asn_description"]
+        results = search_ip(ip)
+        return results.get("asn_description", "No Data/Failed")
     except:
         return "No Data/Failed"
 
-def getWhoisCIDR(ip):
+def get_whois_cidr(ip):
     try:
-        results = searchIP(ip)
-        return results["asn_cidr"]
+        results = search_ip(ip)
+        return results.get("asn_cidr", "No Data/Failed")
     except:
         return "No Data/Failed"
 
-def getBGPCIDR(ip):
+def get_bgp_cidr(ip):
     try:
-        results = searchIP(ip)
+        results = search_ip(ip)
         return results["network"]["cidr"]
     except:
         return "No Data/Failed"
 
-def getASN(ip):
+def get_asn(ip):
     try:
-        results = searchIP(ip)
-        return results["asn"]
+        results = search_ip(ip)
+        return results.get("asn", "No Data/Failed")
     except:
         return "No Data/Failed"
 
 def shodan_search(ip):
-    if ip in shodanCache.keys():
-        return shodanCache[ip]
+    if ip in shodan_cache.keys():
+        return shodan_cache[ip]
     else:
         try:
             host = api.host(ip)
-            shodanCache[ip] = host
+            shodan_cache[ip] = host
         except shodan.APIError:
             return None
         return host
 
-def getShodanPorts(host):
+def get_shodan_ports(host):
     try:
         ports = (f'{item["port"]}({item["_shodan"]["module"]})' for item in host["data"])
         return ",".join(ports)
-        #return ", ".join(map(str, ports))
-    except: 
+    except:
         return "No Data/Failed"
 
-domains = [line.rstrip('\n') for line in open(args.dnslist)]
-
-with open_or_stdout(output) as f:
-    writer = csv.writer(f)
-
-    if shodan_enable:
-        writer.writerow(["IP", "DNS", "RDNS", "ASN", "IP Hoster", "IP Owner", "BGP CIDR", "Whois CIDR", "Shodan Ports"])
+def process_domain(domain):
+    data = get_ip(domain)
+    if data:
+        results = []
+        for ip in data:
+            result = {
+                "IP": ip,
+                "DNS": domain,
+                "RDNS": get_rdns(ip),
+                "ASN": get_asn(ip),
+                "IP Hoster": get_ip_hoster(ip),
+                "IP Owner": get_ip_owner(ip),
+                "BGP CIDR": get_bgp_cidr(ip),
+                "Whois CIDR": get_whois_cidr(ip)
+            }
+            if shodan_enable:
+                host = shodan_search(ip)
+                result["Shodan Ports"] = get_shodan_ports(host)
+            results.append(result)
+        return results
     else:
-        writer.writerow(["IP", "DNS", "RDNS", "ASN", "IP Hoster", "IP Owner", "BGP CIDR", "Whois CIDR"])
+        return []  # Return an empty list when no IP address is associated with the domain
 
-    for domain in domains:
-        time.sleep(0.02)
-        data = getIP(domain)
-        if data != False:
-            for ip in data:
-                time.sleep(2)
-                try:
+
+def main():
+    domains = [line.rstrip('\n') for line in open(args.dnslist)]
+    
+    with open_or_stdout(output) as f:
+        writer = csv.writer(f)
+        
+        if shodan_enable:
+            writer.writerow(["IP", "DNS", "RDNS", "ASN", "IP Hoster", "IP Owner", "BGP CIDR", "Whois CIDR", "Shodan Ports"])
+        else:
+            writer.writerow(["IP", "DNS", "RDNS", "ASN", "IP Hoster", "IP Owner", "BGP CIDR", "Whois CIDR"])
+        
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for domain in domains:
+                results = executor.submit(process_domain, domain)
+                for result in results.result():
+                    row = [result["IP"], result["DNS"], result["RDNS"], result["ASN"], result["IP Hoster"], result["IP Owner"], result["BGP CIDR"], result["Whois CIDR"]]
                     if shodan_enable:
-                        host = shodan_search(ip)
-                        writer.writerow([ip, domain, getRDNS(ip), getASN(ip), getIPHoster(ip), getIPOwner(ip), getBGPCIDR(ip), getWhoisCIDR(ip), getShodanPorts(host)])
-                    else:
-                        writer.writerow([ip, domain, getRDNS(ip), getASN(ip), getIPHoster(ip), getIPOwner(ip), getBGPCIDR(ip), getWhoisCIDR(ip)])
-                except:
-                    sys.stderr.write(f'Error:{ip} failed for some reason')
-                    pass
+                        row.append(result.get("Shodan Ports", "No Data/Failed"))
+                    writer.writerow(row)
 
-
+if __name__ == "__main__":
+    main()
