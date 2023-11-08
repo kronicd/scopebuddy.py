@@ -22,7 +22,7 @@ last_ipwhois_timestamp = 0  # Initialize the timestamp
 parser = argparse.ArgumentParser()
 parser.add_argument("dnslist", help="A text file containing a list of domain names")
 parser.add_argument("-s", "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
-parser.add_argument("-c", "--config", default="config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
+parser.add_argument("-c", "--config", default="os.path.realpath(__file__))}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
 parser.add_argument("-o", "--output", default="-", help="Output file")
 parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Verbose output")
 args = parser.parse_args()
