@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import threading
 from contextlib import contextmanager
 import argparse
 import time
@@ -18,17 +19,20 @@ warnings.filterwarnings("ignore")
 cache = {}
 shodan_cache = {}
 last_ipwhois_timestamp = 0  # Initialize the timestamp
+lock = threading.Lock()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("dnslist", help="A text file containing a list of domain names")
 parser.add_argument("-s", "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
 parser.add_argument("-c", "--config", default=f"{os.path.dirname(os.path.realpath(__file__))}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
 parser.add_argument("-o", "--output", default="-", help="Output file")
-parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Verbose output")
+parser.add_argument("-v", "--verbose", default=0, action="count", help="Increase verbosity level (use -v for normal verbosity, -vv for more verbosity)")
 args = parser.parse_args()
 shodan_enable = args.shodan
 verbose = args.verbose
 output = args.output
+
+
 
 if shodan_enable:
     try:
@@ -57,12 +61,19 @@ def open_or_stdout(filename):
     else:
         yield sys.stdout
 
+def print_debug(output, level):
+    if verbose >= level:
+        sys.stderr.write(f"{output}\n")
+        sys.stderr.flush()
+
 def search_cache(ip):
     for item in cache.keys():
         needle = ipaddress.ip_network(f'{ip}/32')
         haystack = ipaddress.ip_network(item)
         if needle.subnet_of(haystack):
+            print_debug(f"[*] Cache hit for IP: {ip}", 2)
             return cache[item]
+    print_debug(f"[*] Cache miss for IP: {ip}", 2)
     return False
 
 def search_ip(ip):
@@ -71,51 +82,48 @@ def search_ip(ip):
     current_timestamp = time.time()
     
     if result == False:
-        try:
-            if current_timestamp - last_ipwhois_timestamp < 2:
-                time.sleep(2 - (current_timestamp - last_ipwhois_timestamp))
-            obj = IPWhois(ip)
-            result = obj.lookup_rdap(depth=1)
-            cache[result.get("asn_cidr", result["network"]["cidr"])] = result
-            last_ipwhois_timestamp = time.time()  # Update the timestamp
-        except:
-            return "Failed"
+        with lock:
+            try:
+                if current_timestamp - last_ipwhois_timestamp < 5:
+                    sleeptime = 5 - (current_timestamp - last_ipwhois_timestamp)
+                    print_debug(f"[*] Sleeping for {sleeptime} to avoid whois rate limits", 1)
+                    time.sleep(sleeptime)
+                obj = IPWhois(ip)
+                result = obj.lookup_rdap(depth=1)
+                cache[result.get("asn_cidr", result["network"]["cidr"])] = result
+                last_ipwhois_timestamp = time.time()  # Update the timestamp
+            except:
+                return "Failed"
     return result
 
 def get_ip(d):
     try:
         data = socket.gethostbyname_ex(d)
         ipx = data[2]
-        if verbose:
-            print(f'[+] Domain {d}, IP: {ipx}')
+        print_debug(f'[+] Domain {d}, IP: {ipx}', 1)
         return ipx
     except Exception:
-        if verbose:
-            print(f'[-] Could not resolve domain {d}')
+        print_debug(f'[-] Could not resolve domain {d}', 1)
         return False
 
 def get_rdns(ip):
     try:
         data = socket.gethostbyaddr(ip)
         host = data[0]
-        if verbose:
-            print(f'[+] IP: {ip}, RDNS {host}')
+        print_debug(f'[+] IP: {ip}, RDNS {host}', 1)
         return host
     except Exception:
-        if verbose:
-            print(f'[-] No RDNS found for {ip}')
+        print_debug(f'[-] No RDNS found for {ip}', 1)
         return "None"
 
 def get_cname(d):
     try:
         data = socket.gethostbyname_ex(d)
         alias = repr(data[1])
-        if verbose:
-            print(f'[+] Domain: {d}, CNAME {alias}')
+        print_debug(f'[+] Domain: {d}, CNAME {alias}', 1)
         return alias
     except Exception:
-        if verbose:
-            print(f'[-] No CNAME found for {d}')
+        print_debug(f'[-] No CNAME found for {d}', 1)
         return False
 
 def get_ip_owner(ip):
