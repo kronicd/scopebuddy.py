@@ -1,2 +1,4 @@
 shodan
 ipwhois
+dnspython
+pyasn
