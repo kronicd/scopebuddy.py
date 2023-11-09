@@ -285,6 +285,8 @@ def get_shodan_ports(host):
         return "No Data/Failed"
 
 def process_domain(domain, asndb, whois_enabled):
+    thread_id = threading.get_ident()
+    print_debug(f'[*] Thread {thread_id} processing {domain}', 2)
     data = get_ip(domain)
     if data:
         results = []
@@ -304,42 +306,42 @@ def process_domain(domain, asndb, whois_enabled):
                 host = shodan_search(ip)
                 result["Shodan Ports"] = get_shodan_ports(host)
             results.append(result)
-        return results
+        return results, thread_id  # Return the thread ID along with results
     else:
-        return []  # Return an empty list when no IP address is associated with the domain
+        return [], thread_id  # Return an empty list and thread ID when no IP address is associated with the domain
 
-
-
+# Modify the main function to collect thread IDs
 def main():
-
     cache_dir = os.path.expanduser("~/.cache/scopebuddy/ipasn")
-
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
-
 
     # Download and convert BGP data
     asndb = download_and_convert_bgp_data(cache_dir)
 
     domains = [line.rstrip('\n') for line in open(args.dnslist)]
-    
+
     with open_or_stdout(output) as f:
         writer = csv.writer(f)
-        
+
         header = ["IP", "DNS", "RDNS", "ASN", "IP Hoster", "BGP CIDR"]
         if whois_enable:
             header.append("IP Owner")
             header.append("Whois CIDR")
         if shodan_enable:
             header.append("Shodan Ports")
-        
         writer.writerow(header)
-        
+
         with ThreadPoolExecutor(max_workers=20) as executor:
+            thread_results = []  # List to collect thread results and IDs
             for domain in domains:
                 domain = domain.strip()
-                results = executor.submit(process_domain, domain, asndb, whois_enable)
-                for result in results.result():
+                result = executor.submit(process_domain, domain, asndb, whois_enable)
+                thread_results.append(result)  # Collect thread results
+
+            for result in thread_results:
+                results, thread_id = result.result()
+                for result in results:
                     row = [result["IP"], result["DNS"], result["RDNS"], result["ASN"], result["IP Hoster"], result["BGP CIDR"]]
                     if whois_enable:
                         row.append(result["IP Owner"])
@@ -347,7 +349,6 @@ def main():
                     if shodan_enable:
                         row.append(result.get("Shodan Ports", "No Data/Failed"))
                     writer.writerow(row)
-
 
 if __name__ == "__main__":
     main()
