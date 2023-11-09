@@ -265,8 +265,10 @@ def get_asn(ip):
 
 def shodan_search(ip):
     if ip in shodan_cache.keys():
+        print_debug(f"[*] Cache hit for Shodan: {ip}", 2)
         return shodan_cache[ip]
     else:
+        print_debug(f"[*] Cache miss for Shodan: {ip}", 2)
         try:
             host = api.host(ip)
             shodan_cache[ip] = host
