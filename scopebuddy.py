@@ -216,6 +216,7 @@ def get_rdns(ip):
         return host
     except Exception:
         print_debug(f'[-] No RDNS found for {ip}', 1)
+        rdns_cache[ip] = "None"
         return "None"
 
 def get_cname(d):
