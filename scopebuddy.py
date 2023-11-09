@@ -32,12 +32,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument("dnslist", help="A text file containing a list of domain names")
 parser.add_argument("-s", "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
 parser.add_argument("-w", "--whois", default=False, action="store_true", help="Enable WHOIS functionality for IP ownership, this will slow things down dramatically")
+parser.add_argument("-t", "--threads", type=int, default=20, help="Number of threads (default 20)")
 parser.add_argument("-c", "--config", default=f"{os.path.dirname(os.path.realpath(__file__))}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
 parser.add_argument("-o", "--output", default="-", help="Output file")
 parser.add_argument("-v", "--verbose", default=0, action="count", help="Increase verbosity level (use -v for normal verbosity, -vv for more verbosity)")
 args = parser.parse_args()
 shodan_enable = args.shodan
 whois_enable = args.whois
+num_threads = args.threads
 verbose = args.verbose
 output = args.output
 
@@ -332,7 +334,7 @@ def main():
             header.append("Shodan Ports")
         writer.writerow(header)
 
-        with ThreadPoolExecutor(max_workers=20) as executor:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
             thread_results = []  # List to collect thread results and IDs
             for domain in domains:
                 domain = domain.strip()
