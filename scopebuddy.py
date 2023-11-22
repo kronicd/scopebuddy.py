@@ -184,13 +184,13 @@ def search_ip(ip):
 
 def get_ip(d):
     try:
-        data = socket.gethostbyname_ex(d)
-        ipx = data[2]
-        print_debug(f'[+] Domain {d}, IP: {ipx}', 1)
-        return ipx
+        data = socket.getaddrinfo(d, None)
+        ip_addresses = [item[4][0] for item in data]
+        print_debug(f'[+] Domain {d}, IP: {ip_addresses}', 1)
+        return ip_addresses
     except Exception:
         print_debug(f'[-] Could not resolve domain {d}', 1)
-        return False
+        return []
 
 
 def search_rnds_cache(ip):
