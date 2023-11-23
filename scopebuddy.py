@@ -153,24 +153,27 @@ def get_asn_name_cymru(ip, asndb):
 
 
 def search_cache(ip):
+    ip_network = ipaddress.ip_network(ip)
+
     for item in cache.keys():
-        needle = ipaddress.ip_network(f'{ip}/32')
-        haystack = ipaddress.ip_network(item)
-        if needle.subnet_of(haystack):
+        item_network = ipaddress.ip_network(item)
+        if ip_network.overlaps(item_network):
             print_debug(f"[*] Cache hit for IP: {ip}", 2)
             return cache[item]
+
     print_debug(f"[*] Cache miss for IP: {ip}", 2)
     return False
+
 
 def search_ip(ip):
     global last_ipwhois_timestamp  # Use the global timestamp variable
     result = search_cache(ip)
-    current_timestamp = time.time()
     
     if result == False:
         with lock:
             try:
-                if current_timestamp - last_ipwhois_timestamp < 5:
+                current_timestamp = time.time()
+                if (current_timestamp - last_ipwhois_timestamp) < 5:
                     sleeptime = 5 - (current_timestamp - last_ipwhois_timestamp)
                     print_debug(f"[*] Sleeping for {sleeptime} to avoid whois rate limits", 1)
                     time.sleep(sleeptime)
@@ -184,13 +187,21 @@ def search_ip(ip):
 
 def get_ip(d):
     try:
-        data = socket.getaddrinfo(d, None)
-        ip_addresses = [item[4][0] for item in data]
+        answers = dns.resolver.resolve(d, 'A')  # IPv4
+        ipv4_addresses = [rdata.address for rdata in answers]
+
+        answers = dns.resolver.resolve(d, 'AAAA')  # IPv6
+        ipv6_addresses = [rdata.address for rdata in answers]
+
+        ip_addresses = ipv4_addresses + ipv6_addresses
+
         print_debug(f'[+] Domain {d}, IP: {ip_addresses}', 1)
         return ip_addresses
     except Exception:
         print_debug(f'[-] Could not resolve domain {d}', 1)
         return []
+
+
 
 
 def search_rnds_cache(ip):
@@ -204,14 +215,14 @@ def search_rnds_cache(ip):
 
 
 def get_rdns(ip):
-
     result = search_rnds_cache(ip)
 
     if result:
         return result
 
     try:
-        data = socket.gethostbyaddr(ip)
+        addr_type = socket.AF_INET if '.' in ip else socket.AF_INET6
+        data = socket.gethostbyaddr(ip, addr_type)
         host = data[0]
         print_debug(f'[+] IP: {ip}, RDNS {host}', 1)
         rdns_cache[ip] = host
@@ -220,6 +231,7 @@ def get_rdns(ip):
         print_debug(f'[-] No RDNS found for {ip}', 1)
         rdns_cache[ip] = "None"
         return "None"
+
 
 def get_cname(d):
     try:
@@ -351,6 +363,10 @@ def main():
                     if shodan_enable:
                         row.append(result.get("Shodan Ports", "No Data/Failed"))
                     writer.writerow(row)
+
+    pprint(cache)
+
+
 
 if __name__ == "__main__":
     main()
