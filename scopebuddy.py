@@ -186,20 +186,31 @@ def search_ip(ip):
     return result
 
 def get_ip(d):
+
+    # Resolve IPv4 addresses
+    ipv4_addresses = []
     try:
-        answers = dns.resolver.resolve(d, 'A')  # IPv4
-        ipv4_addresses = [rdata.address for rdata in answers]
+        answers_ipv4 = dns.resolver.resolve(d, 'A')
+        ipv4_addresses = [rdata.address for rdata in answers_ipv4]
+    except dns.resolver.NoAnswer:
+        pass  # No IPv4 addresses found
 
-        answers = dns.resolver.resolve(d, 'AAAA')  # IPv6
-        ipv6_addresses = [rdata.address for rdata in answers]
+    # Resolve IPv6 addresses
+    ipv6_addresses = []
+    try:
+        answers_ipv6 = dns.resolver.resolve(d, 'AAAA')
+        ipv6_addresses = [rdata.address for rdata in answers_ipv6]
+    except dns.resolver.NoAnswer:
+        pass  # No IPv6 addresses found
 
-        ip_addresses = ipv4_addresses + ipv6_addresses
+    ip_addresses = ipv4_addresses + ipv6_addresses
 
-        print_debug(f'[+] Domain {d}, IP: {ip_addresses}', 1)
-        return ip_addresses
-    except Exception:
+    if len(ip_addresses) == 0:
         print_debug(f'[-] Could not resolve domain {d}', 1)
-        return []
+    else:
+        print_debug(f'[+] Domain {d}, IP: {ip_addresses}', 1)
+
+    return ip_addresses
 
 
 
