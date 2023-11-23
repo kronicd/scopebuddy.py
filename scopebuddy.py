@@ -187,21 +187,25 @@ def search_ip(ip):
 
 def get_ip(d):
 
-    # Resolve IPv4 addresses
     ipv4_addresses = []
-    try:
-        answers_ipv4 = dns.resolver.resolve(d, 'A')
-        ipv4_addresses = [rdata.address for rdata in answers_ipv4]
-    except dns.resolver.NoAnswer:
-        pass  # No IPv4 addresses found
-
-    # Resolve IPv6 addresses
     ipv6_addresses = []
+
     try:
-        answers_ipv6 = dns.resolver.resolve(d, 'AAAA')
-        ipv6_addresses = [rdata.address for rdata in answers_ipv6]
-    except dns.resolver.NoAnswer:
-        pass  # No IPv6 addresses found
+        # Resolve IPv4 addresses
+        try:
+            answers_ipv4 = dns.resolver.resolve(d, 'A')
+            ipv4_addresses = [rdata.address for rdata in answers_ipv4]
+        except dns.resolver.NoAnswer:
+            pass  # No IPv4 addresses found
+
+        # Resolve IPv6 addresses
+        try:
+            answers_ipv6 = dns.resolver.resolve(d, 'AAAA')
+            ipv6_addresses = [rdata.address for rdata in answers_ipv6]
+        except dns.resolver.NoAnswer:
+            pass  # No IPv6 addresses found
+    except:
+        pass
 
     ip_addresses = ipv4_addresses + ipv6_addresses
 
