@@ -190,22 +190,19 @@ def get_ip(d):
     ipv4_addresses = []
     ipv6_addresses = []
 
+    # Resolve IPv4 addresses
     try:
-        # Resolve IPv4 addresses
-        try:
-            answers_ipv4 = dns.resolver.resolve(d, 'A')
-            ipv4_addresses = [rdata.address for rdata in answers_ipv4]
-        except dns.resolver.NoAnswer:
-            pass  # No IPv4 addresses found
-
-        # Resolve IPv6 addresses
-        try:
-            answers_ipv6 = dns.resolver.resolve(d, 'AAAA')
-            ipv6_addresses = [rdata.address for rdata in answers_ipv6]
-        except dns.resolver.NoAnswer:
-            pass  # No IPv6 addresses found
+        answers_ipv4 = dns.resolver.resolve(d, 'A')
+        ipv4_addresses = [rdata.address for rdata in answers_ipv4]
     except:
-        pass
+        pass  # No IPv4 addresses found
+
+    # Resolve IPv6 addresses
+    try:
+        answers_ipv6 = dns.resolver.resolve(d, 'AAAA')
+        ipv6_addresses = [rdata.address for rdata in answers_ipv6]
+    except:
+        pass  # No IPv6 addresses found
 
     ip_addresses = ipv4_addresses + ipv6_addresses
 
