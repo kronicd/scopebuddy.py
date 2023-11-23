@@ -364,8 +364,6 @@ def main():
                         row.append(result.get("Shodan Ports", "No Data/Failed"))
                     writer.writerow(row)
 
-    pprint(cache)
-
 
 
 if __name__ == "__main__":
