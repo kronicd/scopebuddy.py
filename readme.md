@@ -9,8 +9,6 @@ scopebuddy.py was written to quickly allow penetration testers to identify the o
 ## Prep
 
 * `pip install -r requirements.txt`
-* `mv config.json.sample config.json`
-* Edit config.json to add your Shodan API details
 
 ## Usage
 `python3 scopebuddy.py hosts.txt [-c config.json] -o somefile`

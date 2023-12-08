@@ -33,7 +33,6 @@ parser.add_argument("dnslist", help="A text file containing a list of domain nam
 parser.add_argument("-s", "--shodan", default=True, action="store_false", help="Disable Shodan search against discovered IP addresses")
 parser.add_argument("-w", "--whois", default=False, action="store_true", help="Enable WHOIS functionality for IP ownership, this will slow things down dramatically")
 parser.add_argument("-t", "--threads", type=int, default=20, help="Number of threads (default 20)")
-parser.add_argument("-c", "--config", default=f"{os.path.dirname(os.path.realpath(__file__))}/config.json", help="Provide a config file containing API keys for additional services (e.g. Shodan)")
 parser.add_argument("-o", "--output", default="-", help="Output file")
 parser.add_argument("-v", "--verbose", default=0, action="count", help="Increase verbosity level (use -v for normal verbosity, -vv for more verbosity)")
 args = parser.parse_args()
@@ -42,26 +41,6 @@ whois_enable = args.whois
 num_threads = args.threads
 verbose = args.verbose
 output = args.output
-
-
-if shodan_enable:
-    try:
-        with open(args.config, "r") as f:
-            config = json.load(f)
-            SHODAN_APIKEY = config.get("shodan")
-        api = shodan.Shodan(SHODAN_APIKEY)
-    except FileNotFoundError as e:
-        print(f"Config file doesn't exist. A sample file is included in the repository for this project. {e}")
-        shodan_enable = False
-        sys.exit(1)
-    except KeyError:
-        print("Malformed config file - missing Shodan API key")
-        shodan_enable = False
-        sys.exit(1)
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        shodan_enable = False
-        sys.exit(1)
 
 @contextmanager
 def open_or_stdout(filename):
@@ -297,18 +276,27 @@ def shodan_search(ip):
     else:
         print_debug(f"[*] Cache miss for Shodan: {ip}", 2)
         try:
-            host = api.host(ip)
-            shodan_cache[ip] = host
-        except shodan.APIError:
-            return None
-        return host
+            # Use Shodan internetdb to get information for the given IP
+            response = requests.get(f'https://internetdb.shodan.io/{ip}')
+            if response.status_code == 200:
+                data = response.json()
+                shodan_cache[ip] = data
+                return data
+            else:
+                print_debug(f"[-] Shodan API request failed for IP: {ip}", 1)
+        except Exception as e:
+            print_debug(f"[-] Error occurred while querying Shodan API: {e}", 1)
+    return None
+
 
 def get_shodan_ports(host):
     try:
-        ports = (f'{item["port"]}({item["_shodan"]["module"]})' for item in host["data"])
-        return ",".join(ports)
+        ports = host['ports']
+        ports = ",".join(map(str, ports))
+        return ports
     except:
         return "No Data/Failed"
+
 
 def process_domain(domain, asndb, whois_enabled):
     thread_id = threading.get_ident()
@@ -373,7 +361,7 @@ def main():
                         row.append(result["IP Owner"])
                         row.append(result["Whois CIDR"])
                     if shodan_enable:
-                        row.append(result.get("Shodan Ports", "No Data/Failed"))
+                        row.append(result["Shodan Ports"])
                     writer.writerow(row)
 
 
