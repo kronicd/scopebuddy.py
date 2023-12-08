@@ -292,7 +292,7 @@ def shodan_search(ip):
 def get_shodan_ports(host):
     try:
         ports = host['ports']
-        ports = ",".join(map(str, ports))
+        ports = ", ".join(map(str, ports))
         return ports
     except:
         return "No Data/Failed"
