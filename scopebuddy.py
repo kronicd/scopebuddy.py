@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from ipwhois import IPWhois
