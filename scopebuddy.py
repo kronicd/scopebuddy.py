@@ -44,6 +44,8 @@ num_threads = args.threads
 verbose = args.verbose
 output = args.output
 
+max_domains_per_thread = 1000
+
 @contextmanager
 def open_or_stdout(filename):
     if filename != '-':
@@ -301,32 +303,34 @@ def get_shodan_ports(host):
 
 
 
-def process_domain(domain, asndb, whois_enabled):
+def process_domains(domains, asndb, whois_enabled):
     thread_id = threading.get_ident()
-    print_debug(f'[*] Thread {thread_id} processing {domain}', 2)
-    data = get_ip(domain)
-    if data:
-        results = []
-        max_hosts_per_thread = 1000  # maximum number of hosts per thread
-        for ip in data[:max_hosts_per_thread]:  # Limit number of hosts processed by each thread
-            result = {
-                "IP": ip,
-                "DNS": domain,
-                "RDNS": get_rdns(ip),
-                "ASN": get_asn_bgpdb(ip, asndb),
-                "IP Hoster": get_asn_name_cymru(ip, asndb),
-                "BGP CIDR": get_cidr_bgpdb(ip, asndb)
-            }
-            if whois_enabled:
-                result["IP Owner"] = get_ip_owner(ip)
-                result["Whois CIDR"] = get_whois_cidr(ip)
-            if shodan_enable:
-                host = shodan_search(ip)
-                result["Shodan Ports"] = get_shodan_ports(host)
-            results.append(result)
-        return results, thread_id  # Return the thread ID along with results
-    else:
-        return [], thread_id  # Return an empty list and thread ID when no IP address is associated with the domain
+    print_debug(f'[*] Thread {thread_id} processing {len(domains)} domains', 2)
+    
+    results = []
+    domains_chunk = domains[:max_domains_per_thread]  # Limit the number of domains processed by each thread
+    for domain in domains_chunk:
+        domain = domain.strip()
+        data = get_ip(domain)
+        if data:
+            for ip in data:
+                result = {
+                    "IP": ip,
+                    "DNS": domain,
+                    "RDNS": get_rdns(ip),
+                    "ASN": get_asn_bgpdb(ip, asndb),
+                    "IP Hoster": get_asn_name_cymru(ip, asndb),
+                    "BGP CIDR": get_cidr_bgpdb(ip, asndb)
+                }
+                if whois_enabled:
+                    result["IP Owner"] = get_ip_owner(ip)
+                    result["Whois CIDR"] = get_whois_cidr(ip)
+                if shodan_enable:
+                    host = shodan_search(ip)
+                    result["Shodan Ports"] = get_shodan_ports(host)
+                results.append(result)
+
+    return results, thread_id  # Return the thread ID along with results
 
 # Modify the main function to use ThreadPoolExecutor dynamically
 def main():
@@ -352,9 +356,9 @@ def main():
 
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             thread_results = []  # List to collect thread results and IDs
-            for domain in domains:
-                domain = domain.strip()
-                result = executor.submit(process_domain, domain, asndb, whois_enable)
+            for i in range(0, len(domains), max_domains_per_thread):
+                domains_chunk = domains[i:i + max_domains_per_thread]
+                result = executor.submit(process_domains, domains_chunk, asndb, whois_enable)
                 thread_results.append(result)  # Collect thread results
 
             for result in thread_results:
