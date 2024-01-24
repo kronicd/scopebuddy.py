@@ -300,13 +300,15 @@ def get_shodan_ports(host):
         return "No Data/Failed"
 
 
+
 def process_domain(domain, asndb, whois_enabled):
     thread_id = threading.get_ident()
     print_debug(f'[*] Thread {thread_id} processing {domain}', 2)
     data = get_ip(domain)
     if data:
         results = []
-        for ip in data:
+        max_hosts_per_thread = 1000  # maximum number of hosts per thread
+        for ip in data[:max_hosts_per_thread]:  # Limit number of hosts processed by each thread
             result = {
                 "IP": ip,
                 "DNS": domain,
@@ -326,7 +328,7 @@ def process_domain(domain, asndb, whois_enabled):
     else:
         return [], thread_id  # Return an empty list and thread ID when no IP address is associated with the domain
 
-# Modify the main function to collect thread IDs
+# Modify the main function to use ThreadPoolExecutor dynamically
 def main():
     cache_dir = os.path.expanduser("~/.cache/scopebuddy/ipasn")
     if not os.path.exists(cache_dir):
@@ -365,8 +367,6 @@ def main():
                     if shodan_enable:
                         row.append(result["Shodan Ports"])
                     writer.writerow(row)
-
-
 
 if __name__ == "__main__":
     main()
