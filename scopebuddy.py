@@ -19,6 +19,7 @@ import sys
 import threading
 import time
 import warnings
+import ipaddress
 
 
 warnings.filterwarnings("ignore")
@@ -302,6 +303,21 @@ def get_shodan_ports(host):
         return "No Data/Failed"
 
 
+def check_if_ipv4(domain):
+    try:
+        ipaddress.IPv4Network(domain)
+        return True
+    except ValueError:
+        return False
+
+
+def check_if_ipv6(domain):
+    try:
+        ipaddress.IPv6Network(domain)
+        return True
+    except ValueError:
+        return False
+
 
 def process_domains(domains, asndb, whois_enabled):
     thread_id = threading.get_ident()
@@ -311,7 +327,16 @@ def process_domains(domains, asndb, whois_enabled):
     domains_chunk = domains[:max_domains_per_thread]  # Limit the number of domains processed by each thread
     for domain in domains_chunk:
         domain = domain.strip()
-        data = get_ip(domain)
+
+        data = []
+
+        if (check_if_ipv4(domain)):
+            data.append(domain)
+        elif (check_if_ipv6(domain)):
+            data.append(domain)
+        else:
+            data = get_ip(domain)
+
         if data:
             for ip in data:
                 result = {
