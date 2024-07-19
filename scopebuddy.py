@@ -20,6 +20,7 @@ import threading
 import time
 import warnings
 import ipaddress
+import shutil 
 
 
 warnings.filterwarnings("ignore")
@@ -60,6 +61,14 @@ def print_debug(output, level):
         sys.stderr.write(f"{output}\n")
         sys.stderr.flush()
 
+# Function to check for required files
+def check_required_files():
+    required_files = ['pyasn_util_dowanload.py', 'pyasn_util_convert.py']
+    for file in required_files:
+        if not shutil.which(file):
+            sys.stderr.write(f"Error: Required file '{file}' not found in the path.\n")
+            sys.stderr.write(f"pyasn (https://github.com/hadiasghari/pyasn/) is missing or incorrectly installed.\n")
+            sys.exit(1)
 
 # Function to download and convert BGP data using pyasn utilities
 def download_and_convert_bgp_data(cache_dir):
@@ -359,6 +368,9 @@ def process_domains(domains, asndb, whois_enabled):
 
 # Modify the main function to use ThreadPoolExecutor dynamically
 def main():
+
+    check_required_files()
+
     cache_dir = os.path.expanduser("~/.cache/scopebuddy/ipasn")
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
