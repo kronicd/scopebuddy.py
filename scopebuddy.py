@@ -63,7 +63,7 @@ def print_debug(output, level):
 
 # Function to check for required files
 def check_required_files():
-    required_files = ['pyasn_util_dowanload.py', 'pyasn_util_convert.py']
+    required_files = ['pyasn_util_download.py', 'pyasn_util_convert.py']
     for file in required_files:
         if not shutil.which(file):
             sys.stderr.write(f"Error: Required file '{file}' not found in the path.\n")
