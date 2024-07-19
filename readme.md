@@ -8,7 +8,7 @@ scopebuddy.py was written to quickly allow penetration testers to identify the o
 
 ## Prep
 
-* `pip install -r requirements.txt`
+* `python3 -m pip install -r requirements.txt`
 
 ## Usage
 `python3 scopebuddy.py hosts.txt [-c config.json] -o somefile`
