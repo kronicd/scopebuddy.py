@@ -61,17 +61,25 @@ def print_debug(output, level):
         sys.stderr.write(f"{output}\n")
         sys.stderr.flush()
 
-# Function to check for required files
 def check_required_files():
     required_files = ['pyasn_util_download.py', 'pyasn_util_convert.py']
+    local_bin_path = os.path.expanduser("~/.local/bin/")
+    file_paths = {}
     for file in required_files:
-        if not shutil.which(file):
-            sys.stderr.write(f"Error: Required file '{file}' not found in the path.\n")
-            sys.stderr.write(f"pyasn (https://github.com/hadiasghari/pyasn/) is missing or incorrectly installed.\n")
+        file_path = shutil.which(file) or os.path.join(local_bin_path, file)
+        if not os.path.isfile(file_path):
+            sys.stderr.write(f"")
+            print_debug(f"[!] Error: Required file '{file}' not found in the path.\n", 0)
+            print_debug(f'[!] pyasn (https://github.com/hadiasghari/pyasn/) is missing or incorrectly installed.\n', 0)
+            sys.stderr.write(f"")
             sys.exit(1)
+        else:
+            print_debug(f"Found '{file}' at '{file_path}'.\n",2)
+            file_paths[file] = file_path
+    return file_paths
 
 # Function to download and convert BGP data using pyasn utilities
-def download_and_convert_bgp_data(cache_dir):
+def download_and_convert_bgp_data(cache_dir, pyasn_util_download, pyasn_util_convert):
     db_path = os.path.join(cache_dir, "ipasn.json")
     dump_path = os.path.join(cache_dir, "latest.bz2")
     file_age = time.time() - os.path.getmtime(db_path) if os.path.exists(db_path) else None
@@ -79,7 +87,7 @@ def download_and_convert_bgp_data(cache_dir):
     if not file_age or file_age >= 6 * 3600:
         # Download the BGP data dump if it doesn't exist or is older than 6 hours
         print(f"[*] Downloading BGP data dump as cached copy is not present or is older than 6 hours")
-        download_command = f"pyasn_util_download.py --latestv46 --filename {dump_path}"
+        download_command = f"{pyasn_util_download} --latestv46 --filename {dump_path}"
         print_debug(f'[*] Running {download_command}', 2)
         if verbose == False:
             subprocess.run(download_command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -87,17 +95,15 @@ def download_and_convert_bgp_data(cache_dir):
             subprocess.run(download_command, shell=True)
         print(f"[*] Download of BGP data dump complete")
 
-
         # Convert the BGP data to the pyasn format
         print(f"[*] Converting BGP data dump to pyasn format")
-        convert_command = f"pyasn_util_convert.py --single {dump_path} {db_path}"
+        convert_command = f"{pyasn_util_convert} --single {dump_path} {db_path}"
         print_debug(f'[*] Running {convert_command}', 2)
         if verbose == False:
             subprocess.run(convert_command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(convert_command, shell=True)
         print(f"[*] Conversion of BGP data dump complete")
-
 
     return pyasn.pyasn(db_path)
 
@@ -369,14 +375,14 @@ def process_domains(domains, asndb, whois_enabled):
 # Modify the main function to use ThreadPoolExecutor dynamically
 def main():
 
-    check_required_files()
+    file_paths = check_required_files()
 
     cache_dir = os.path.expanduser("~/.cache/scopebuddy/ipasn")
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
 
     # Download and convert BGP data
-    asndb = download_and_convert_bgp_data(cache_dir)
+    asndb = download_and_convert_bgp_data(cache_dir, file_paths['pyasn_util_download.py'], file_paths['pyasn_util_convert.py'])
 
     domains = [line.rstrip('\n') for line in open(args.dnslist)]
 
