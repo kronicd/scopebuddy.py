@@ -12,6 +12,7 @@ import json
 import os
 import pyasn
 import requests
+import re
 import shodan
 import socket
 import subprocess
@@ -40,12 +41,14 @@ parser.add_argument("-w", "--whois", default=False, action="store_true", help="E
 parser.add_argument("-t", "--threads", type=int, default=20, help="Number of threads (default 20)")
 parser.add_argument("-o", "--output", default="-", help="Output file")
 parser.add_argument("-v", "--verbose", default=0, action="count", help="Increase verbosity level (use -v for normal verbosity, -vv for more verbosity)")
+parser.add_argument("--ftp-bgp", default=False, action="store_true", help="Download BGP data via FTP instead of HTTP")
 args = parser.parse_args()
 shodan_enable = args.shodan
 whois_enable = args.whois
 num_threads = args.threads
 verbose = args.verbose
 output = args.output
+ftp_bgp = args.ftp_bgp
 
 max_domains_per_thread = 1000
 
@@ -79,8 +82,50 @@ def check_required_files():
             file_paths[file] = file_path
     return file_paths
 
+def download_bgp_http(dump_path):
+    base_url = "http://archive.routeviews.org/route-views4/bgpdata/"
+    try:
+        r = requests.get(base_url, timeout=10)
+        r.raise_for_status()
+        directories = re.findall(r'href="(\d{4}\.\d{2}/)"', r.text)
+        if not directories:
+            return False
+        
+        # Sort directories descending to try the most recent first
+        for latest_dir in sorted(directories, reverse=True):
+            ribs_url = f"{base_url}{latest_dir}RIBS/"
+            try:
+                r = requests.get(ribs_url, timeout=10)
+                if r.status_code != 200:
+                    continue
+                
+                files = re.findall(r'href="(rib\.\d{8}\.\d{4}\.bz2)"', r.text)
+                if not files:
+                    continue
+                
+                # Found files in this month, get the latest one
+                latest_file = sorted(files)[-1]
+                download_url = f"{ribs_url}{latest_file}"
+                
+                print(f"[*] Downloading {download_url} via HTTP")
+                r = requests.get(download_url, stream=True, timeout=30)
+                r.raise_for_status()
+                with open(dump_path, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                return True
+            except Exception as e:
+                print_debug(f"[*] Skipping {latest_dir}: {e}", 2)
+                continue
+                
+        return False
+    except Exception as e:
+        print_debug(f"[!] HTTP download failed: {e}", 1)
+        return False
+
 # Function to download and convert BGP data using pyasn utilities
-def download_and_convert_bgp_data(cache_dir, pyasn_util_download, pyasn_util_convert):
+def download_and_convert_bgp_data(cache_dir, pyasn_util_download, pyasn_util_convert, use_ftp=False):
     db_path = os.path.join(cache_dir, "ipasn.json")
     dump_path = os.path.join(cache_dir, "latest.bz2")
     file_age = time.time() - os.path.getmtime(db_path) if os.path.exists(db_path) else None
@@ -88,12 +133,26 @@ def download_and_convert_bgp_data(cache_dir, pyasn_util_download, pyasn_util_con
     if not file_age or file_age >= 6 * 3600:
         # Download the BGP data dump if it doesn't exist or is older than 6 hours
         print(f"[*] Downloading BGP data dump as cached copy is not present or is older than 6 hours")
-        download_command = f"{pyasn_util_download} --latestv46 --filename {dump_path}"
-        print_debug(f'[*] Running {download_command}', 2)
-        if not verbose:
-            subprocess.run(download_command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            subprocess.run(download_command, shell=True)
+        
+        download_success = False
+        if not use_ftp:
+            download_success = download_bgp_http(dump_path)
+            if not download_success:
+                print_debug("[!] HTTP download failed, falling back to FTP", 1)
+        
+        if not download_success:
+            download_command = f"{pyasn_util_download} --latestv46 --filename {dump_path}"
+            print_debug(f'[*] Running {download_command}', 2)
+            if not verbose:
+                result = subprocess.run(download_command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                result = subprocess.run(download_command, shell=True)
+            download_success = (result.returncode == 0)
+
+        if not download_success:
+            print("[!] Error: Failed to download BGP data dump.")
+            sys.exit(1)
+            
         print(f"[*] Download of BGP data dump complete")
 
         # Convert the BGP data to the pyasn format
@@ -394,7 +453,7 @@ def main():
         os.makedirs(cache_dir)
 
     # Download and convert BGP data
-    asndb = download_and_convert_bgp_data(cache_dir, file_paths['pyasn_util_download.py'], file_paths['pyasn_util_convert.py'])
+    asndb = download_and_convert_bgp_data(cache_dir, file_paths['pyasn_util_download.py'], file_paths['pyasn_util_convert.py'], use_ftp=ftp_bgp)
 
     domains = [line.rstrip('\n') for line in open(args.dnslist)]
 
