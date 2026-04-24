@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from ipwhois import IPWhois
 from pprint import pprint
@@ -50,7 +50,7 @@ verbose = args.verbose
 output = args.output
 ftp_bgp = args.ftp_bgp
 
-max_domains_per_thread = 1000
+MAX_DOMAINS_PER_THREAD = 100
 
 @contextmanager
 def open_or_stdout(filename):
@@ -410,8 +410,7 @@ def process_domains(domains, asndb, whois_enabled):
     print_debug(f'[*] Thread {thread_id} processing {len(domains)} domains', 2)
     
     results = []
-    domains_chunk = domains[:max_domains_per_thread]  # Limit the number of domains processed by each thread
-    for domain in domains_chunk:
+    for domain in domains:
         domain = domain.strip()
 
         data = []
@@ -468,23 +467,30 @@ def main():
             header.append("Shodan Ports")
         writer.writerow(header)
 
-        with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            thread_results = []  # List to collect thread results and IDs
-            for i in range(0, len(domains), max_domains_per_thread):
-                domains_chunk = domains[i:i + max_domains_per_thread]
-                result = executor.submit(process_domains, domains_chunk, asndb, whois_enable)
-                thread_results.append(result)  # Collect thread results
+        num_domains = len(domains)
+        if num_domains > 0:
+            # Dynamic chunk size: try to use all threads but cap at MAX_DOMAINS_LIMIT
+            chunk_size = max(1, min(MAX_DOMAINS_PER_THREAD, (num_domains + num_threads - 1) // num_threads))
+            print_debug(f"[*] Processing {num_domains} domains with chunk size {chunk_size}", 1)
 
-            for result in thread_results:
-                results, thread_id = result.result()
-                for result in results:
-                    row = [result["IP"], result["DNS"], result["RDNS"], result["ASN"], result["IP Hoster"], result["BGP CIDR"]]
-                    if whois_enable:
-                        row.append(result["IP Owner"])
-                        row.append(result["Whois CIDR"])
-                    if shodan_enable:
-                        row.append(result["Shodan Ports"])
-                    writer.writerow(row)
+            with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                futures = []
+                for i in range(0, num_domains, chunk_size):
+                    domains_chunk = domains[i:i + chunk_size]
+                    futures.append(executor.submit(process_domains, domains_chunk, asndb, whois_enable))
+
+                for future in as_completed(futures):
+                    results, thread_id = future.result()
+                    for result in results:
+                        row = [result["IP"], result["DNS"], result["RDNS"], result["ASN"], result["IP Hoster"], result["BGP CIDR"]]
+                        if whois_enable:
+                            row.append(result["IP Owner"])
+                            row.append(result["Whois CIDR"])
+                        if shodan_enable:
+                            row.append(result["Shodan Ports"])
+                        writer.writerow(row)
+                        f.flush()
+
 
 if __name__ == "__main__":
     main()
