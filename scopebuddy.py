@@ -31,6 +31,7 @@ cymru_asn_cache = {}
 rdns_cache = {}
 last_ipwhois_timestamp = 0  # Initialize the timestamp
 lock = threading.Lock()
+cache_lock = threading.Lock()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("dnslist", help="A text file containing a list of domain names")
@@ -89,7 +90,7 @@ def download_and_convert_bgp_data(cache_dir, pyasn_util_download, pyasn_util_con
         print(f"[*] Downloading BGP data dump as cached copy is not present or is older than 6 hours")
         download_command = f"{pyasn_util_download} --latestv46 --filename {dump_path}"
         print_debug(f'[*] Running {download_command}', 2)
-        if verbose == False:
+        if not verbose:
             subprocess.run(download_command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(download_command, shell=True)
@@ -99,7 +100,7 @@ def download_and_convert_bgp_data(cache_dir, pyasn_util_download, pyasn_util_con
         print(f"[*] Converting BGP data dump to pyasn format")
         convert_command = f"{pyasn_util_convert} --single {dump_path} {db_path}"
         print_debug(f'[*] Running {convert_command}', 2)
-        if verbose == False:
+        if not verbose:
             subprocess.run(convert_command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(convert_command, shell=True)
@@ -117,13 +118,13 @@ def get_cidr_bgpdb(ip, asndb):
 
 
 def search_cymru_cache(asn_number):
-
-    if asn_number in cymru_asn_cache.keys():
-        print_debug(f"[*] Cache hit for ASN: {asn_number}", 2)
-        return cymru_asn_cache[asn_number]
-    else:
-        print_debug(f"[*] Cache miss for ASN: {asn_number}", 2)
-        return False
+    with cache_lock:
+        if asn_number in cymru_asn_cache:
+            print_debug(f"[*] Cache hit for ASN: {asn_number}", 2)
+            return cymru_asn_cache[asn_number]
+    
+    print_debug(f"[*] Cache miss for ASN: {asn_number}", 2)
+    return False
 
 def get_asn_name_cymru(ip, asndb):
 
@@ -142,7 +143,8 @@ def get_asn_name_cymru(ip, asndb):
                 txt_string = txt_string.decode("utf-8")  # Decode bytes to string
                 if txt_string.startswith(f"{asn_number} |"):
                     asn_name = txt_string.split("|")[-1].strip()
-                    cymru_asn_cache[asn_number] = asn_name
+                    with cache_lock:
+                        cymru_asn_cache[asn_number] = asn_name
                     return asn_name
     
     except Exception as e:
@@ -154,11 +156,12 @@ def get_asn_name_cymru(ip, asndb):
 def search_cache(ip):
     ip_network = ipaddress.ip_network(ip)
 
-    for item in cache.keys():
-        item_network = ipaddress.ip_network(item)
-        if ip_network.overlaps(item_network):
-            print_debug(f"[*] Cache hit for IP: {ip}", 2)
-            return cache[item]
+    with cache_lock:
+        for item, value in list(cache.items()):
+            item_network = ipaddress.ip_network(item)
+            if ip_network.overlaps(item_network):
+                print_debug(f"[*] Cache hit for IP: {ip}", 2)
+                return value
 
     print_debug(f"[*] Cache miss for IP: {ip}", 2)
     return False
@@ -170,6 +173,11 @@ def search_ip(ip):
     
     if result == False:
         with lock:
+            # Double check cache inside lock
+            result = search_cache(ip)
+            if result != False:
+                return result
+
             try:
                 current_timestamp = time.time()
                 if (current_timestamp - last_ipwhois_timestamp) < 5:
@@ -178,7 +186,8 @@ def search_ip(ip):
                     time.sleep(sleeptime)
                 obj = IPWhois(ip)
                 result = obj.lookup_rdap(depth=1)
-                cache[result.get("asn_cidr", result["network"]["cidr"])] = result
+                with cache_lock:
+                    cache[result.get("asn_cidr", result["network"]["cidr"])] = result
                 last_ipwhois_timestamp = time.time()  # Update the timestamp
             except:
                 return "Failed"
@@ -216,13 +225,13 @@ def get_ip(d):
 
 
 def search_rnds_cache(ip):
-
-    if ip in rdns_cache.keys():
-        print_debug(f"[*] Cache hit for RDNS: {ip}", 2)
-        return rdns_cache[ip]
-    else:
-        print_debug(f"[*] Cache miss for RDNS: {ip}", 2)
-        return False
+    with cache_lock:
+        if ip in rdns_cache:
+            print_debug(f"[*] Cache hit for RDNS: {ip}", 2)
+            return rdns_cache[ip]
+    
+    print_debug(f"[*] Cache miss for RDNS: {ip}", 2)
+    return False
 
 
 def get_rdns(ip):
@@ -232,15 +241,16 @@ def get_rdns(ip):
         return result
 
     try:
-        addr_type = socket.AF_INET if '.' in ip else socket.AF_INET6
-        data = socket.gethostbyaddr(ip, addr_type)
+        data = socket.gethostbyaddr(ip)
         host = data[0]
         print_debug(f'[+] IP: {ip}, RDNS {host}', 1)
-        rdns_cache[ip] = host
+        with cache_lock:
+            rdns_cache[ip] = host
         return host
     except Exception:
         print_debug(f'[-] No RDNS found for {ip}', 1)
-        rdns_cache[ip] = "None"
+        with cache_lock:
+            rdns_cache[ip] = "None"
         return "None"
 
 
@@ -290,22 +300,24 @@ def get_asn(ip):
         return "No Data/Failed"
 
 def shodan_search(ip):
-    if ip in shodan_cache.keys():
-        print_debug(f"[*] Cache hit for Shodan: {ip}", 2)
-        return shodan_cache[ip]
-    else:
-        print_debug(f"[*] Cache miss for Shodan: {ip}", 2)
-        try:
-            # Use Shodan internetdb to get information for the given IP
-            response = requests.get(f'https://internetdb.shodan.io/{ip}')
-            if response.status_code == 200:
-                data = response.json()
+    with cache_lock:
+        if ip in shodan_cache:
+            print_debug(f"[*] Cache hit for Shodan: {ip}", 2)
+            return shodan_cache[ip]
+    
+    print_debug(f"[*] Cache miss for Shodan: {ip}", 2)
+    try:
+        # Use Shodan internetdb to get information for the given IP
+        response = requests.get(f'https://internetdb.shodan.io/{ip}')
+        if response.status_code == 200:
+            data = response.json()
+            with cache_lock:
                 shodan_cache[ip] = data
-                return data
-            else:
-                print_debug(f"[-] Shodan API request failed for IP: {ip}", 1)
-        except Exception as e:
-            print_debug(f"[-] Error occurred while querying Shodan API: {e}", 1)
+            return data
+        else:
+            print_debug(f"[-] Shodan API request failed for IP: {ip}", 1)
+    except Exception as e:
+        print_debug(f"[-] Error occurred while querying Shodan API: {e}", 1)
     return None
 
 
